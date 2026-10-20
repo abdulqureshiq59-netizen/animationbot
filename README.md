@@ -18,7 +18,7 @@ story idea + character description
         ▼
  1. Script & shot breakdown   (LLM: Gemini / Groq / offline template)
         ▼
- 2. Character reference sheet (image gen: Pollinations.ai, free)
+ 2. Character reference sheet (image gen: Cloudflare Workers AI, free)
         ▼
  3. Per-shot image → video    (Kling/Runway if configured, else free
                                 Ken Burns pan/zoom via ffmpeg)
@@ -38,9 +38,15 @@ automatically — no code changes needed elsewhere.
 > Note: some hosts (locked-down sandboxes, CI) block outbound network to
 > image/voice services entirely. In that case the pipeline still completes
 > end-to-end using fully-offline fallbacks (a labelled placeholder image,
-> and `espeak-ng` for voice) so you can smoke-test the whole flow. On a
-> normal server (e.g. Render) the free online services (Pollinations,
-> msedge-tts) are used directly and produce real cartoon images/voices.
+> and `espeak-ng`/Google Translate TTS for voice) so you can smoke-test the
+> whole flow. On a normal server (e.g. Render) the free online services
+> (Cloudflare Workers AI, msedge-tts) are used directly and produce real
+> cartoon images/voices.
+>
+> **Image generation needs a free Cloudflare account** (see below) —
+> without it, every image is a plain labelled placeholder card, not a
+> cartoon. (Pollinations.ai, used here previously, started requiring a
+> paid API key/budget in 2026 and was dropped from the default chain.)
 
 ## Requirements
 
@@ -67,7 +73,18 @@ GEMINI_API_KEY=
 GROQ_API_KEY=
 
 # --- Character reference sheet (image generation) ---
-# Default is Pollinations.ai — fully free, no key needed.
+# Default is Cloudflare Workers AI (FLUX.1 schnell) — genuinely free,
+# recurring daily quota (10,000 "neurons"/day, ~170 images, resets daily,
+# no credit card). Sign up free at https://dash.cloudflare.com/sign-up,
+# then:
+#   CLOUDFLARE_ACCOUNT_ID -> dashboard right sidebar, or Workers & Pages overview
+#   CLOUDFLARE_API_TOKEN  -> My Profile -> API Tokens -> Create Token ->
+#                            "Workers AI" template (or custom token with
+#                            "Workers AI: Read/Edit" permission)
+# Without these two set, every image is a plain placeholder card instead
+# of a real cartoon image.
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=
 STABILITY_API_KEY=
 
 # --- Shot / image-to-video generation ---

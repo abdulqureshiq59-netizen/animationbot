@@ -114,7 +114,13 @@ export async function generateScene(character, story, language = "English") {
     try {
       return parseJson(await callGemini(character, story, language));
     } catch (e) {
-      console.log(`[llm] Gemini failed (${e.message}), trying next provider...`);
+      console.log(`[llm] Gemini failed (${e.message}), retrying once in case it was a transient overload...`);
+      try {
+        await new Promise((r) => setTimeout(r, 3000));
+        return parseJson(await callGemini(character, story, language));
+      } catch (e2) {
+        console.log(`[llm] Gemini failed again (${e2.message}), trying next provider...`);
+      }
     }
   }
 

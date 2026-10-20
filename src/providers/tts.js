@@ -14,6 +14,7 @@
  * fully offline, robotic but keeps the pipeline runnable everywhere.
  */
 import path from "node:path";
+import fs from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
@@ -40,16 +41,47 @@ async function elevenlabsGenerate(_text, _outPath, _voice) {
 async function edgeTtsGenerate(text, outPath, voice) {
   const tts = new MsEdgeTTS();
   await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-  const dir = path.dirname(outPath);
-  const base = path.basename(outPath, path.extname(outPath));
-  const { audioFilePath } = await tts.toFile(path.join(dir, base), text);
-  return audioFilePath;
+  // NOTE: msedge-tts's toFile() takes a DIRECTORY, not a file path — it
+  // always writes "audio.mp3" (+ a metadata file) inside that directory.
+  // We give it our shared audio dir, then move the result to our own
+  // per-shot filename so concurrent/sequential shots don't overwrite
+  // each other before each one is renamed.
+  const { audioFilePath } = await tts.toFile(config.AUDIO_DIR, text);
+  await fs.rename(audioFilePath, outPath);
+  return outPath;
 }
 
 async function espeakFallback(text, outPath) {
   const wavPath = outPath.replace(/\.[^.]+$/, ".wav");
-  await execFileAsync("espeak-ng", ["-s", "150", "-w", wavPath, text]);
-  return wavPath;
+  try {
+    await execFileAsync("espeak-ng", ["-s", "150", "-w", wavPath, text]);
+    return wavPath;
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      console.log("[tts] espeak-ng is not installed on this host either — using Google Translate's free unofficial TTS endpoint as a last resort.");
+      return googleTranslateTtsFallback(text, wavPath);
+    }
+    throw e;
+  }
+}
+
+async function googleTranslateTtsFallback(text, outPath) {
+  // Last-resort, fully free, no-key fallback that needs no system binary at
+  // all: Google Translate's unofficial "say it" endpoint. Undocumented and
+  // rate-limited (~200 chars per request), but works anywhere with
+  // outbound internet and keeps the pipeline from hard-failing.
+  const mp3Path = outPath.replace(/\.[^.]+$/, ".mp3");
+  const url =
+    "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en" +
+    `&q=${encodeURIComponent(text.slice(0, 200))}`;
+  const resp = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!resp.ok) throw new Error(`Google Translate TTS HTTP ${resp.status}`);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  await fs.writeFile(mp3Path, buf);
+  return mp3Path;
 }
 
 export async function generateVoiceLine(text, shotNumber, voiceKey = "english") {

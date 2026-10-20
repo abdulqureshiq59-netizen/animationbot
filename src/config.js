@@ -13,6 +13,8 @@ function get(name) {
 export const GEMINI_API_KEY = get("GEMINI_API_KEY");
 export const GROQ_API_KEY = get("GROQ_API_KEY");
 export const STABILITY_API_KEY = get("STABILITY_API_KEY");
+export const CLOUDFLARE_ACCOUNT_ID = get("CLOUDFLARE_ACCOUNT_ID");
+export const CLOUDFLARE_API_TOKEN = get("CLOUDFLARE_API_TOKEN");
 export const KLING_API_KEY = get("KLING_API_KEY");
 export const RUNWAY_API_KEY = get("RUNWAY_API_KEY");
 export const ELEVENLABS_API_KEY = get("ELEVENLABS_API_KEY");

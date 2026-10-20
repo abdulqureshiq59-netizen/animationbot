@@ -1,10 +1,18 @@
 /**
  * Character reference sheet + per-shot image generation.
  *
- * Default: Pollinations.ai — free, no API key, a simple HTTP GET that
- * returns an image. Good enough for a first stylised-cartoon demo. If
- * STABILITY_API_KEY is set later, wire that path in the same way without
- * changing the rest of the pipeline.
+ * Default: Cloudflare Workers AI running FLUX.1 [schnell] — genuinely
+ * free, recurring daily quota (10,000 "neurons"/day, ~170 images at
+ * 1024x1024, resets 00:00 UTC), no credit card. Needs a free Cloudflare
+ * account: CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN.
+ *
+ * (Pollinations.ai, previously used here, started requiring a paid API
+ * key/budget in 2026 — anonymous requests now 402. Left out of the
+ * fallback chain for that reason; Cloudflare replaces it as the
+ * no-cost-forever default.)
+ *
+ * If STABILITY_API_KEY is set later, wire that path in the same way
+ * without changing the rest of the pipeline.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -16,14 +24,25 @@ const STYLE_SUFFIX =
   ", 3D rendered cartoon style, Pixar-like stylised animation, clean lighting, " +
   "vibrant colors, consistent character design, high quality render";
 
-async function pollinationsFetch(prompt, outPath, seed, width = 768, height = 576) {
+async function cloudflareFetch(prompt, outPath, seed) {
   const url =
-    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
-    `?width=${width}&height=${height}&seed=${seed}&nologo=true`;
-  const resp = await fetch(url, { signal: AbortSignal.timeout(90_000) });
-  if (!resp.ok) throw new Error(`Pollinations HTTP ${resp.status}`);
-  const buf = Buffer.from(await resp.arrayBuffer());
-  await fs.writeFile(outPath, buf);
+    `https://api.cloudflare.com/client/v4/accounts/${config.CLOUDFLARE_ACCOUNT_ID}` +
+    `/ai/run/@cf/black-forest-labs/flux-1-schnell`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.CLOUDFLARE_API_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prompt: prompt.slice(0, 2048), seed, steps: 8 }),
+    signal: AbortSignal.timeout(90_000),
+  });
+  if (!resp.ok) throw new Error(`Cloudflare Workers AI HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (!data.success || !data.result || !data.result.image) {
+    throw new Error(`Cloudflare Workers AI returned no image (${JSON.stringify(data.errors || data)})`);
+  }
+  await fs.writeFile(outPath, Buffer.from(data.result.image, "base64"));
   return outPath;
 }
 
@@ -77,12 +96,17 @@ async function offlinePlaceholder(prompt, outPath, seed, width = 768, height = 5
 }
 
 async function fetchImage(prompt, outPath, seed, width = 768, height = 576) {
-  try {
-    return await pollinationsFetch(prompt, outPath, seed, width, height);
-  } catch (e) {
-    console.log(`[imageGen] Pollinations unreachable (${e.message}); using offline placeholder image.`);
-    return offlinePlaceholder(prompt, outPath, seed, width, height);
+  if (config.CLOUDFLARE_ACCOUNT_ID && config.CLOUDFLARE_API_TOKEN) {
+    try {
+      return await cloudflareFetch(prompt, outPath, seed);
+    } catch (e) {
+      console.log(`[imageGen] Cloudflare Workers AI failed (${e.message}); using offline placeholder image.`);
+      return offlinePlaceholder(prompt, outPath, seed, width, height);
+    }
   }
+
+  console.log("[imageGen] No CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_API_TOKEN configured; using offline placeholder image.");
+  return offlinePlaceholder(prompt, outPath, seed, width, height);
 }
 
 export async function generateCharacterSheet(characterDescription, seed = 42) {
