@@ -1,0 +1,50 @@
+# Render Blueprint for AISA — AI Cartoon Demo Pipeline
+#
+# This pipeline is a one-shot script (it generates one video and exits),
+# not a persistent web server. That maps to a Render "Cron Job", not a
+# "Web Service" — a Web/Worker service expects the process to keep running
+# and will be treated as crashed/restarted when the script exits normally.
+#
+# The schedule below ("0 0 31 2 *" = every Feb 31st, which never happens)
+# is a standard trick for a cron job you only ever trigger manually from
+# the Render dashboard ("Trigger Run"), rather than on an automatic
+# schedule. Change it to a real cron expression if you want this to run
+# automatically instead.
+#
+# To use this file: in the Render dashboard, create a new "Blueprint" from
+# this repo (not a manually-configured Web Service) so Render reads this
+# file and sets everything up correctly, including the Python environment.
+
+cronJobs:
+  - name: aisa-demo
+    env: python
+    schedule: "0 0 31 2 *"
+    buildCommand: "apt-get update && apt-get install -y espeak-ng && pip install -r requirements.txt"
+    startCommand: >
+      python -m pipeline.run_demo
+      --character "$CHARACTER_DESC"
+      --story "$STORY_IDEA"
+      --language "$VOICE_LANGUAGE"
+      --out demo.mp4
+    envVars:
+      - key: CHARACTER_DESC
+        value: "A small orange fox with big round glasses and a blue backpack"
+      - key: STORY_IDEA
+        value: "the fox finds a glowing map in the forest"
+      - key: VOICE_LANGUAGE
+        value: english
+      # Optional upgrade keys — leave blank to use the free fallbacks.
+      # Set these in the Render dashboard (Environment tab), not here,
+      # so real keys are never committed to the repo.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: KLING_API_KEY
+        sync: false
+      - key: RUNWAY_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: SUNO_API_KEY
+        sync: false

@@ -46,10 +46,41 @@ automatically — no code changes needed elsewhere.
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # fill in only the keys you actually have; all optional
 ```
 
-If you want the offline voice fallback to work in a restricted environment:
+Then create a `.env` file in the project root (this file is gitignored —
+never commit it) with only the keys you actually have; every line is
+optional and the pipeline runs fine with none of them set:
+
+```bash
+# --- Script / story generation (LLM) — pick ONE, or leave both blank to
+# use the built-in offline template writer ---
+#   Google Gemini -> https://aistudio.google.com/apikey   (free tier)
+#   Groq          -> https://console.groq.com/keys        (free tier, fast)
+GEMINI_API_KEY=
+GROQ_API_KEY=
+
+# --- Character reference sheet (image generation) ---
+# Default is Pollinations.ai — fully free, no key needed.
+STABILITY_API_KEY=
+
+# --- Shot / image-to-video generation ---
+# Default fallback (no key needed) is a Ken Burns pan/zoom on the still
+# image. Add a real key to get actual AI-generated motion:
+KLING_API_KEY=
+RUNWAY_API_KEY=
+
+# --- Voice (text-to-speech) ---
+# Default is edge-tts — fully free, no key needed, many languages.
+ELEVENLABS_API_KEY=
+
+# --- Music / SFX ---
+# Default is a synthesised ambient pad, generated locally, no key needed.
+SUNO_API_KEY=
+```
+
+If you want the fully-offline voice fallback to work in a restricted
+environment (no outbound network at all):
 ```bash
 apt-get install -y espeak-ng
 ```
@@ -93,15 +124,35 @@ assets/
 
 ## Deploying (Render)
 
-1. Push this repo to GitHub.
-2. Create a new Render **Background Worker** or **Web Service** pointing
-   at this repo.
-3. Build command: `pip install -r requirements.txt && apt-get update && apt-get install -y espeak-ng`
-   (the `espeak-ng` install is only needed as a safety-net fallback; on
-   Render's normal network, edge-tts will be used directly).
-4. Set any API keys you have as environment variables in Render's
-   dashboard (same names as `.env.example`).
-5. Run with: `python -m pipeline.run_demo --character "..." --story "..." --out demo.mp4`
+This is a one-shot script (it generates one video and exits) — not a
+persistent server. **Do not** create it as a plain "Web Service" with
+Node.js selected (that was the cause of the first failed deploy: Render
+defaulted to `npm install`, which fails immediately because there's no
+`package.json` — this is a Python project).
+
+Correct path — use the `render.yaml` already in this repo:
+
+1. Push this repo to GitHub (already done if you're reading this on GitHub).
+2. In the Render dashboard, choose **New → Blueprint**, not "Web Service",
+   and point it at this repo. Render reads `render.yaml` and creates a
+   **Cron Job** with the Python environment, correct build command
+   (`pip install -r requirements.txt` + `espeak-ng`), and placeholder
+   env vars automatically — no manual "Environment: Python" clicking.
+3. In that Cron Job's **Environment** tab, fill in any real API keys you
+   have (`GEMINI_API_KEY`, `KLING_API_KEY`, etc.) and the actual
+   `CHARACTER_DESC` / `STORY_IDEA` / `VOICE_LANGUAGE` for your demo.
+   Everything is optional — it runs fine with just the defaults.
+4. The job's schedule is set to a date that never occurs (Feb 31st) on
+   purpose, so it only runs when you click **Trigger Run** — this isn't
+   meant to auto-generate videos on a timer.
+5. After a run finishes, grab the output file from that job's **Shell**
+   tab at `assets/output/demo.mp4` (Render jobs don't have a public URL
+   to download from directly).
+
+If you'd rather not use the Blueprint flow, you can still create a plain
+**Background Worker**, but you must manually set **Environment: Python 3**
+in its settings (Render won't auto-detect this), and trigger runs via its
+Shell tab rather than expecting it to serve anything.
 
 ## Upgrading a stage later (example: real AI video via Kling)
 
