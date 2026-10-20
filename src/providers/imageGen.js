@@ -24,7 +24,10 @@ const STYLE_SUFFIX =
   ", 3D rendered cartoon style, Pixar-like stylised animation, clean lighting, " +
   "vibrant colors, consistent character design, high quality render";
 
-async function cloudflareFetch(prompt, outPath, seed) {
+async function cloudflareFetch(prompt, outPath, _seed) {
+  // NOTE: @cf/black-forest-labs/flux-1-schnell's schema rejects any extra
+  // fields (strict "unevaluated properties" validation) — it only takes
+  // prompt/steps, no seed. Passing seed causes a 400 on every request.
   const url =
     `https://api.cloudflare.com/client/v4/accounts/${config.CLOUDFLARE_ACCOUNT_ID}` +
     `/ai/run/@cf/black-forest-labs/flux-1-schnell`;
@@ -34,7 +37,7 @@ async function cloudflareFetch(prompt, outPath, seed) {
       Authorization: `Bearer ${config.CLOUDFLARE_API_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ prompt: prompt.slice(0, 2048), seed, steps: 8 }),
+    body: JSON.stringify({ prompt: prompt.slice(0, 2048), steps: 8 }),
     signal: AbortSignal.timeout(90_000),
   });
   if (!resp.ok) {
