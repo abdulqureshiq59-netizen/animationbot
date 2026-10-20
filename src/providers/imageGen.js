@@ -37,7 +37,10 @@ async function cloudflareFetch(prompt, outPath, seed) {
     body: JSON.stringify({ prompt: prompt.slice(0, 2048), seed, steps: 8 }),
     signal: AbortSignal.timeout(90_000),
   });
-  if (!resp.ok) throw new Error(`Cloudflare Workers AI HTTP ${resp.status}`);
+  if (!resp.ok) {
+    const bodyText = await resp.text().catch(() => "");
+    throw new Error(`Cloudflare Workers AI HTTP ${resp.status}: ${bodyText.slice(0, 500)}`);
+  }
   const data = await resp.json();
   if (!data.success || !data.result || !data.result.image) {
     throw new Error(`Cloudflare Workers AI returned no image (${JSON.stringify(data.errors || data)})`);
@@ -109,7 +112,7 @@ async function fetchImage(prompt, outPath, seed, width = 768, height = 576) {
   return offlinePlaceholder(prompt, outPath, seed, width, height);
 }
 
-export async function generateCharacterSheet(characterDescription, seed = 42) {
+export async function generateCharacterSheet(characterDescription, seed, charactersDir) {
   const angles = [
     ["front", "front view, full body, neutral expression"],
     ["threequarter", "three-quarter view, full body, slight smile"],
@@ -119,16 +122,16 @@ export async function generateCharacterSheet(characterDescription, seed = 42) {
   const paths = [];
   for (const [key, angleDesc] of angles) {
     const prompt = `${characterDescription}, ${angleDesc}${STYLE_SUFFIX}`;
-    const outPath = path.join(config.CHARACTERS_DIR, `reference_${key}.png`);
+    const outPath = path.join(charactersDir, `reference_${key}.png`);
     await fetchImage(prompt, outPath, seed, 768, 768);
     paths.push(outPath);
   }
   return paths;
 }
 
-export async function generateShotImage(shotDescription, characterDescription, seed, shotNumber) {
+export async function generateShotImage(shotDescription, characterDescription, seed, shotNumber, charactersDir) {
   const prompt = `${characterDescription}, ${shotDescription}${STYLE_SUFFIX}`;
-  const outPath = path.join(config.CHARACTERS_DIR, `shot_${String(shotNumber).padStart(2, "0")}.png`);
+  const outPath = path.join(charactersDir, `shot_${String(shotNumber).padStart(2, "0")}.png`);
   await fetchImage(prompt, outPath, seed + shotNumber, 1024, 576);
   return outPath;
 }

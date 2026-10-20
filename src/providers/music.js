@@ -82,8 +82,8 @@ function synthPad(duration, outPath) {
   return writeWav(outPath, samples, SAMPLE_RATE);
 }
 
-export async function generateBackgroundMusic(duration) {
-  const outPath = path.join(config.AUDIO_DIR, "music_bed.wav");
+export async function generateBackgroundMusic(duration, audioDir) {
+  const outPath = path.join(audioDir, "music_bed.wav");
 
   if (config.SUNO_API_KEY) {
     try {

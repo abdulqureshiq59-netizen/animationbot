@@ -21,10 +21,30 @@ export const ELEVENLABS_API_KEY = get("ELEVENLABS_API_KEY");
 export const SUNO_API_KEY = get("SUNO_API_KEY");
 
 export const OUTPUT_DIR = path.join(ROOT, "assets", "output");
-export const CHARACTERS_DIR = path.join(ROOT, "assets", "characters");
-export const AUDIO_DIR = path.join(ROOT, "assets", "audio");
-export const VIDEO_DIR = path.join(ROOT, "assets", "video");
+export const JOBS_DIR = path.join(ROOT, "assets", "jobs");
 
-for (const dir of [OUTPUT_DIR, CHARACTERS_DIR, AUDIO_DIR, VIDEO_DIR]) {
-  fs.mkdirSync(dir, { recursive: true });
+fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+fs.mkdirSync(JOBS_DIR, { recursive: true });
+
+/**
+ * Every generation job gets its OWN subfolder for intermediate files
+ * (character images, shot videos, voice lines). Without this, two jobs
+ * running around the same time would overwrite each other's fixed
+ * filenames (shot_01.png, voice_01.mp3, ...) mid-write — which is exactly
+ * what corrupted a shot's mp4 and crashed assembly with "moov atom not
+ * found" the first time this ran on Render with two requests close
+ * together.
+ */
+export function createJobDirs(jobId) {
+  const base = path.join(JOBS_DIR, jobId);
+  const dirs = {
+    base,
+    charactersDir: path.join(base, "characters"),
+    audioDir: path.join(base, "audio"),
+    videoDir: path.join(base, "video"),
+  };
+  for (const dir of [dirs.charactersDir, dirs.audioDir, dirs.videoDir]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dirs;
 }

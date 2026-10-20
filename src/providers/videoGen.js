@@ -54,8 +54,8 @@ async function kenBurnsFallback(imagePath, outPath, duration) {
   return outPath;
 }
 
-export async function generateShotVideo(imagePath, shotNumber, duration) {
-  const outPath = path.join(config.VIDEO_DIR, `shot_${String(shotNumber).padStart(2, "0")}.mp4`);
+export async function generateShotVideo(imagePath, shotNumber, duration, videoDir) {
+  const outPath = path.join(videoDir, `shot_${String(shotNumber).padStart(2, "0")}.mp4`);
 
   if (config.KLING_API_KEY) {
     try {

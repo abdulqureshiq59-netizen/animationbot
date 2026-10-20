@@ -15,6 +15,7 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import crypto from "node:crypto";
 import * as config from "./config.js";
 import * as llm from "./providers/llm.js";
 import * as imageGen from "./providers/imageGen.js";
@@ -46,51 +47,63 @@ function parseArgs(argv) {
   return args;
 }
 
-export async function run(character, story, language, outName, seed = 42) {
-  console.log("== STEP 1/5: Script + shot breakdown ==");
-  const scene = await llm.generateScene(character, story, language);
-  console.log(JSON.stringify(scene, null, 2));
+export async function run(character, story, language, outName, seed = 42, jobId = null) {
+  // Every job gets its own subfolder for intermediate files (character
+  // images, shot videos, voice lines) so two generations running close
+  // together never overwrite each other's fixed filenames mid-write.
+  const id = jobId || crypto.randomUUID();
+  const dirs = config.createJobDirs(id);
 
-  await fs.writeFile(
-    path.join(config.OUTPUT_DIR, "scene_script.json"),
-    JSON.stringify(scene, null, 2)
-  );
+  try {
+    console.log("== STEP 1/5: Script + shot breakdown ==");
+    const scene = await llm.generateScene(character, story, language);
+    console.log(JSON.stringify(scene, null, 2));
 
-  console.log("\n== STEP 2/5: Character reference sheet ==");
-  const refSheet = await imageGen.generateCharacterSheet(character, seed);
-  for (const p of refSheet) console.log(`  -> ${p}`);
+    await fs.writeFile(
+      path.join(config.OUTPUT_DIR, `${id}_script.json`),
+      JSON.stringify(scene, null, 2)
+    );
 
-  const shotVideos = [];
-  const shotVoices = [];
+    console.log("\n== STEP 2/5: Character reference sheet ==");
+    const refSheet = await imageGen.generateCharacterSheet(character, seed, dirs.charactersDir);
+    for (const p of refSheet) console.log(`  -> ${p}`);
 
-  for (const shot of scene.shots) {
-    const n = shot.shot_number;
+    const shotVideos = [];
+    const shotVoices = [];
 
-    console.log(`\n== STEP 3/5: Shot ${n} — image ==`);
-    const imgPath = await imageGen.generateShotImage(shot.description, character, seed, n);
-    console.log(`  -> ${imgPath}`);
+    for (const shot of scene.shots) {
+      const n = shot.shot_number;
 
-    console.log(`== STEP 3/5: Shot ${n} — video ==`);
-    const videoPath = await videoGen.generateShotVideo(imgPath, n, Number(shot.duration_seconds || 5));
-    console.log(`  -> ${videoPath}`);
-    shotVideos.push(videoPath);
+      console.log(`\n== STEP 3/5: Shot ${n} — image ==`);
+      const imgPath = await imageGen.generateShotImage(shot.description, character, seed, n, dirs.charactersDir);
+      console.log(`  -> ${imgPath}`);
 
-    console.log(`== STEP 4/5: Shot ${n} — voice ==`);
-    const voicePath = await tts.generateVoiceLine(shot.dialogue || "", n, language);
-    console.log(`  -> ${voicePath || "(no dialogue in this shot)"}`);
-    shotVoices.push(voicePath);
+      console.log(`== STEP 3/5: Shot ${n} — video ==`);
+      const videoPath = await videoGen.generateShotVideo(imgPath, n, Number(shot.duration_seconds || 5), dirs.videoDir);
+      console.log(`  -> ${videoPath}`);
+      shotVideos.push(videoPath);
+
+      console.log(`== STEP 4/5: Shot ${n} — voice ==`);
+      const voicePath = await tts.generateVoiceLine(shot.dialogue || "", n, language, dirs.audioDir);
+      console.log(`  -> ${voicePath || "(no dialogue in this shot)"}`);
+      shotVoices.push(voicePath);
+    }
+
+    const totalDuration = scene.shots.reduce((sum, s) => sum + Number(s.duration_seconds || 5), 0);
+
+    console.log("\n== STEP 4/5: Background music ==");
+    const musicPath = await music.generateBackgroundMusic(totalDuration, dirs.audioDir);
+    console.log(`  -> ${musicPath}`);
+
+    console.log("\n== STEP 5/5: Final assembly ==");
+    const finalPath = await assembleFinalVideo(shotVideos, shotVoices, musicPath, outName);
+    console.log(`\nDone. Final demo video: ${finalPath}`);
+    return finalPath;
+  } finally {
+    // Clean up the per-job intermediate files; only the final video (and
+    // the script JSON) in assets/output are meant to stick around.
+    await fs.rm(dirs.base, { recursive: true, force: true }).catch(() => {});
   }
-
-  const totalDuration = scene.shots.reduce((sum, s) => sum + Number(s.duration_seconds || 5), 0);
-
-  console.log("\n== STEP 4/5: Background music ==");
-  const musicPath = await music.generateBackgroundMusic(totalDuration);
-  console.log(`  -> ${musicPath}`);
-
-  console.log("\n== STEP 5/5: Final assembly ==");
-  const finalPath = await assembleFinalVideo(shotVideos, shotVoices, musicPath, outName);
-  console.log(`\nDone. Final demo video: ${finalPath}`);
-  return finalPath;
 }
 
 async function main() {

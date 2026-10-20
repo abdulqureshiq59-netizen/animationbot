@@ -43,10 +43,11 @@ async function edgeTtsGenerate(text, outPath, voice) {
   await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
   // NOTE: msedge-tts's toFile() takes a DIRECTORY, not a file path — it
   // always writes "audio.mp3" (+ a metadata file) inside that directory.
-  // We give it our shared audio dir, then move the result to our own
-  // per-shot filename so concurrent/sequential shots don't overwrite
+  // We give it our own per-job audio dir, then move the result to our
+  // own per-shot filename so concurrent/sequential shots don't overwrite
   // each other before each one is renamed.
-  const { audioFilePath } = await tts.toFile(config.AUDIO_DIR, text);
+  const dir = path.dirname(outPath);
+  const { audioFilePath } = await tts.toFile(dir, text);
   await fs.rename(audioFilePath, outPath);
   return outPath;
 }
@@ -84,8 +85,8 @@ async function googleTranslateTtsFallback(text, outPath) {
   return mp3Path;
 }
 
-export async function generateVoiceLine(text, shotNumber, voiceKey = "english") {
-  const outPath = path.join(config.AUDIO_DIR, `voice_${String(shotNumber).padStart(2, "0")}.mp3`);
+export async function generateVoiceLine(text, shotNumber, voiceKey = "english", audioDir) {
+  const outPath = path.join(audioDir, `voice_${String(shotNumber).padStart(2, "0")}.mp3`);
   if (!text || !text.trim()) return "";
 
   const voiceName = VOICE_PRESETS[voiceKey.toLowerCase()] || VOICE_PRESETS.english;

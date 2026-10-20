@@ -3,7 +3,5 @@ node_modules/
 __pycache__/
 *.pyc
 assets/output/
-assets/characters/
-assets/audio/
-assets/video/
+assets/jobs/
 .DS_Store

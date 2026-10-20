@@ -111,8 +111,9 @@ app.post("/generate", async (req, res) => {
   const outName = `${jobId}.mp4`;
   jobs.set(jobId, { status: "running", error: null, outputFile: null });
 
-  // Run in the background; the client polls /status/:jobId.
-  run(character, story, language, outName)
+  // Run in the background; the client polls /status/:jobId. Pass jobId
+  // through so the per-job intermediate-files folder uses the same id.
+  run(character, story, language, outName, 42, jobId)
     .then((outPath) => {
       jobs.set(jobId, { status: "done", error: null, outputFile: path.basename(outPath) });
     })
