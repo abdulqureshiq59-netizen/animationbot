@@ -22,6 +22,10 @@ app.use(express.urlencoded({ extended: true }));
 
 const jobs = new Map(); // jobId -> { status, error, outputFile }
 
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
 app.get("/", (_req, res) => {
   res.type("html").send(`<!doctype html>
 <html>
