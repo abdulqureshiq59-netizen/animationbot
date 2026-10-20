@@ -45,6 +45,7 @@ async function callOpenAI(character, story, language) {
       ],
       response_format: { type: "json_object" },
     }),
+    signal: AbortSignal.timeout(60_000),
   });
   if (!resp.ok) {
     const bodyText = await resp.text().catch(() => "");
@@ -64,6 +65,7 @@ async function callGemini(character, story, language) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    signal: AbortSignal.timeout(60_000),
   });
   if (!resp.ok) throw new Error(`Gemini HTTP ${resp.status}`);
   const data = await resp.json();
@@ -87,6 +89,7 @@ async function callGroq(character, story, language) {
         { role: "user", content: prompt },
       ],
     }),
+    signal: AbortSignal.timeout(60_000),
   });
   if (!resp.ok) throw new Error(`Groq HTTP ${resp.status}`);
   const data = await resp.json();

@@ -113,7 +113,18 @@ app.post("/generate", async (req, res) => {
 
   // Run in the background; the client polls /status/:jobId. Pass jobId
   // through so the per-job intermediate-files folder uses the same id.
-  run(character, story, language, outName, 42, jobId)
+  //
+  // Safety net: every individual network call in the pipeline has its own
+  // timeout, but as a backstop against anything unforeseen hanging (and
+  // leaving the status page stuck on "running" forever), give the whole
+  // job a hard ceiling too. The underlying run() keeps going in the
+  // background either way — this only stops the UI from waiting on it.
+  const JOB_TIMEOUT_MS = 6 * 60 * 1000;
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`Job exceeded ${JOB_TIMEOUT_MS / 1000}s — something likely hung`)), JOB_TIMEOUT_MS)
+  );
+
+  Promise.race([run(character, story, language, outName, 42, jobId), timeoutPromise])
     .then((outPath) => {
       jobs.set(jobId, { status: "done", error: null, outputFile: path.basename(outPath) });
     })
