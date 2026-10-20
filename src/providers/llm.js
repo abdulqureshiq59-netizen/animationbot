@@ -29,7 +29,7 @@ fences, in this exact shape:
 async function callGemini(character, story, language) {
   const url =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
-    `gemini-1.5-flash:generateContent?key=${config.GEMINI_API_KEY}`;
+    `gemini-flash-latest:generateContent?key=${config.GEMINI_API_KEY}`;
   const prompt = `${SYSTEM_PROMPT}\n\nCharacter: ${character}\nStory idea: ${story}\nVoiceover language: ${language}`;
 
   const resp = await fetch(url, {
