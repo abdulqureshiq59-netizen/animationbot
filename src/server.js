@@ -26,21 +26,64 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+const PAGE_STYLE = `
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+    max-width: 640px; margin: 48px auto; padding: 0 20px;
+    color: #1a1a2e; background: #fafafa; line-height: 1.5;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  .sub { color: #666; margin-top: 0; margin-bottom: 2rem; }
+  label { display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.9rem; }
+  .field { margin-bottom: 1.25rem; }
+  textarea, input[type=text], input:not([type]), select {
+    width: 100%; box-sizing: border-box; padding: 10px 12px;
+    border: 1px solid #ccc; border-radius: 8px; font-size: 1rem;
+    font-family: inherit; background: #fff; color: #1a1a2e;
+  }
+  textarea:focus, input:focus, select:focus { outline: 2px solid #4f46e5; border-color: #4f46e5; }
+  button {
+    background: #4f46e5; color: #fff; border: none; border-radius: 8px;
+    padding: 12px 24px; font-size: 1rem; font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #4338ca; }
+  .card {
+    border: 1px solid #e5e5e5; border-radius: 12px; padding: 20px;
+    background: #fff; margin-top: 1rem;
+  }
+  .status-badge {
+    display: inline-block; padding: 4px 10px; border-radius: 999px;
+    font-size: 0.85rem; font-weight: 600;
+  }
+  .status-running { background: #fef3c7; color: #92400e; }
+  .status-done { background: #d1fae5; color: #065f46; }
+  .status-failed { background: #fee2e2; color: #991b1b; }
+  video { width: 100%; border-radius: 8px; margin-top: 1rem; }
+  code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; }
+`;
+
 app.get("/", (_req, res) => {
   res.type("html").send(`<!doctype html>
 <html>
-<head><title>AISA — AI Cartoon Demo</title></head>
-<body style="font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto;">
-  <h1>AISA — AI Cartoon Demo Pipeline</h1>
-  <p>Generate a short AI-animated cartoon scene from a character description and a story idea.</p>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AISA — AI Cartoon Demo</title>
+<style>${PAGE_STYLE}</style>
+</head>
+<body>
+  <h1>AISA — AI Cartoon Demo</h1>
+  <p class="sub">Turn a character + a story idea into a short AI-animated scene.</p>
   <form action="/generate" method="post">
-    <label>Character description<br>
-      <textarea name="character" rows="3" style="width:100%" required>A small orange fox with big round glasses and a blue backpack</textarea>
-    </label><br><br>
-    <label>Story idea<br>
-      <input name="story" style="width:100%" required value="the fox finds a glowing map in the forest">
-    </label><br><br>
-    <label>Voice language<br>
+    <div class="field">
+      <label>Character description</label>
+      <textarea name="character" rows="3" required>A small orange fox with big round glasses and a blue backpack</textarea>
+    </div>
+    <div class="field">
+      <label>Story idea</label>
+      <input name="story" required value="the fox finds a glowing map in the forest">
+    </div>
+    <div class="field">
+      <label>Voice language</label>
       <select name="language">
         <option value="english">English</option>
         <option value="english-male">English (male)</option>
@@ -48,7 +91,7 @@ app.get("/", (_req, res) => {
         <option value="urdu-male">Urdu (male)</option>
         <option value="hindi">Hindi</option>
       </select>
-    </label><br><br>
+    </div>
     <button type="submit">Generate demo</button>
   </form>
 </body>
@@ -91,13 +134,40 @@ app.get("/status/:jobId", (req, res) => {
   if (!job) return res.status(404).json({ error: "unknown job id" });
 
   if (req.headers.accept && req.headers.accept.includes("text/html")) {
+    const refresh = job.status === "running" ? `<meta http-equiv="refresh" content="5">` : "";
+    const badgeClass =
+      job.status === "done" ? "status-done" : job.status === "failed" ? "status-failed" : "status-running";
+
+    let body;
     if (job.status === "done") {
-      return res.redirect(`/download/${job.outputFile}`);
+      body = `
+        <p><span class="status-badge ${badgeClass}">Done</span></p>
+        <video controls src="/download/${job.outputFile}"></video>
+        <p><a href="/download/${job.outputFile}" download>Download video</a></p>
+        <p><a href="/">&larr; Generate another</a></p>`;
+    } else if (job.status === "failed") {
+      body = `
+        <p><span class="status-badge ${badgeClass}">Failed</span></p>
+        <p><code>${job.error || "unknown error"}</code></p>
+        <p><a href="/">&larr; Try again</a></p>`;
+    } else {
+      body = `
+        <p><span class="status-badge ${badgeClass}">Generating…</span></p>
+        <p class="sub">This usually takes a minute or two. This page refreshes itself every 5 seconds.</p>`;
     }
-    return res.type("html").send(`<!doctype html><html><body style="font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto;">
-      <p>Status: <b>${job.status}</b>${job.error ? ` — ${job.error}` : ""}</p>
-      <p>This page does not auto-refresh — reload it in a minute.</p>
-    </body></html>`);
+
+    return res.type("html").send(`<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+${refresh}
+<title>AISA — Demo status</title>
+<style>${PAGE_STYLE}</style>
+</head>
+<body>
+  <h1>AISA — AI Cartoon Demo</h1>
+  <div class="card">${body}</div>
+</body>
+</html>`);
   }
   res.json(job);
 });
