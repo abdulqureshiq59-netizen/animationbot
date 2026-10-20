@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+assets/output/
+assets/characters/
+assets/audio/
+assets/video/
+.DS_Store
