@@ -65,24 +65,28 @@ it) with only the keys you actually have; every line is optional and the
 pipeline runs fine with none of them set:
 
 ```bash
-# --- Script / story generation (LLM) — pick ONE, or leave both blank to
-# use the built-in offline template writer ---
-#   Google Gemini -> https://aistudio.google.com/apikey   (free tier)
-#   Groq          -> https://console.groq.com/keys        (free tier, fast)
+# --- Script / story generation (LLM) — tried in this order; leave all
+# blank to use the built-in offline template writer ---
+#   OpenAI -> https://platform.openai.com/api-keys (paid, ~$0.001/demo on gpt-4o-mini)
+#   Gemini -> https://aistudio.google.com/apikey    (free tier)
+#   Groq   -> https://console.groq.com/keys         (free tier, fast)
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
 GEMINI_API_KEY=
 GROQ_API_KEY=
 
-# --- Character reference sheet (image generation) ---
-# Default is Cloudflare Workers AI (FLUX.1 schnell) — genuinely free,
-# recurring daily quota (10,000 "neurons"/day, ~170 images, resets daily,
-# no credit card). Sign up free at https://dash.cloudflare.com/sign-up,
-# then:
-#   CLOUDFLARE_ACCOUNT_ID -> dashboard right sidebar, or Workers & Pages overview
-#   CLOUDFLARE_API_TOKEN  -> My Profile -> API Tokens -> Create Token ->
-#                            "Workers AI" template (or custom token with
-#                            "Workers AI: Read/Edit" permission)
-# Without these two set, every image is a plain placeholder card instead
-# of a real cartoon image.
+# --- Character reference sheet (image generation) — tried in this order ---
+#   OpenAI gpt-image-1 -> same key as above (paid, ~$0.04-0.05/image, best quality)
+#   Cloudflare Workers AI (FLUX.1 schnell) -> genuinely free, recurring
+#     daily quota (10,000 "neurons"/day, ~170 images, resets daily, no
+#     credit card). Sign up free at https://dash.cloudflare.com/sign-up:
+#       CLOUDFLARE_ACCOUNT_ID -> dashboard right sidebar, or Workers & Pages overview
+#       CLOUDFLARE_API_TOKEN  -> My Profile -> API Tokens -> Create Token ->
+#                                "Workers AI" template (or custom token with
+#                                "Workers AI: Read/Edit" permission)
+# Without any of these set, every image is a plain placeholder card
+# instead of a real cartoon image.
+OPENAI_IMAGE_MODEL=gpt-image-1
 CLOUDFLARE_ACCOUNT_ID=
 CLOUDFLARE_API_TOKEN=
 STABILITY_API_KEY=

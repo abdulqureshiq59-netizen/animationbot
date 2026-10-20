@@ -1,18 +1,18 @@
 /**
  * Character reference sheet + per-shot image generation.
  *
- * Default: Cloudflare Workers AI running FLUX.1 [schnell] — genuinely
- * free, recurring daily quota (10,000 "neurons"/day, ~170 images at
- * 1024x1024, resets 00:00 UTC), no credit card. Needs a free Cloudflare
- * account: CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN.
+ * Tries, in order:
+ *  1. OpenAI's gpt-image-1 (if OPENAI_API_KEY is set) — paid, best quality,
+ *     ~$0.04-0.05/image depending on size/quality.
+ *  2. Cloudflare Workers AI running FLUX.1 [schnell] — genuinely free,
+ *     recurring daily quota (10,000 "neurons"/day, ~170 images at
+ *     1024x1024, resets 00:00 UTC), no credit card. Needs a free
+ *     Cloudflare account: CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN.
+ *  3. An offline placeholder card (no network needed at all).
  *
  * (Pollinations.ai, previously used here, started requiring a paid API
  * key/budget in 2026 — anonymous requests now 402. Left out of the
- * fallback chain for that reason; Cloudflare replaces it as the
- * no-cost-forever default.)
- *
- * If STABILITY_API_KEY is set later, wire that path in the same way
- * without changing the rest of the pipeline.
+ * fallback chain for that reason.)
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -23,6 +23,44 @@ import * as config from "../config.js";
 const STYLE_SUFFIX =
   ", 3D rendered cartoon style, Pixar-like stylised animation, clean lighting, " +
   "vibrant colors, consistent character design, high quality render";
+
+async function openaiFetch(prompt, outPath, width, height) {
+  // gpt-image-1 only accepts a fixed set of sizes; snap to the closest.
+  const size = width >= height ? "1536x1024" : height > width ? "1024x1536" : "1024x1024";
+
+  const resp = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.OPENAI_IMAGE_MODEL,
+      prompt: prompt.slice(0, 4000),
+      size,
+      n: 1,
+    }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!resp.ok) {
+    const bodyText = await resp.text().catch(() => "");
+    throw new Error(`OpenAI images HTTP ${resp.status}: ${bodyText.slice(0, 500)}`);
+  }
+  const data = await resp.json();
+  const item = data.data && data.data[0];
+  if (!item) throw new Error(`OpenAI images returned no data (${JSON.stringify(data)})`);
+
+  if (item.b64_json) {
+    await fs.writeFile(outPath, Buffer.from(item.b64_json, "base64"));
+  } else if (item.url) {
+    const imgResp = await fetch(item.url, { signal: AbortSignal.timeout(60_000) });
+    if (!imgResp.ok) throw new Error(`OpenAI image URL fetch HTTP ${imgResp.status}`);
+    await fs.writeFile(outPath, Buffer.from(await imgResp.arrayBuffer()));
+  } else {
+    throw new Error("OpenAI images response had neither b64_json nor url");
+  }
+  return outPath;
+}
 
 async function cloudflareFetch(prompt, outPath, _seed) {
   // NOTE: @cf/black-forest-labs/flux-1-schnell's schema rejects any extra
@@ -102,6 +140,14 @@ async function offlinePlaceholder(prompt, outPath, seed, width = 768, height = 5
 }
 
 async function fetchImage(prompt, outPath, seed, width = 768, height = 576) {
+  if (config.OPENAI_API_KEY) {
+    try {
+      return await openaiFetch(prompt, outPath, width, height);
+    } catch (e) {
+      console.log(`[imageGen] OpenAI images failed (${e.message}); trying next provider...`);
+    }
+  }
+
   if (config.CLOUDFLARE_ACCOUNT_ID && config.CLOUDFLARE_API_TOKEN) {
     try {
       return await cloudflareFetch(prompt, outPath, seed);
@@ -111,7 +157,7 @@ async function fetchImage(prompt, outPath, seed, width = 768, height = 576) {
     }
   }
 
-  console.log("[imageGen] No CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_API_TOKEN configured; using offline placeholder image.");
+  console.log("[imageGen] No OPENAI_API_KEY / CLOUDFLARE_ACCOUNT_ID+CLOUDFLARE_API_TOKEN configured; using offline placeholder image.");
   return offlinePlaceholder(prompt, outPath, seed, width, height);
 }
 

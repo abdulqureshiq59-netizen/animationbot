@@ -1,9 +1,10 @@
 /**
  * Script + shot-breakdown generation.
  *
- * Tries, in order: Gemini (free tier) -> Groq (free tier) -> a built-in
- * offline template writer that needs no key at all, so the pipeline never
- * hard-fails just because no LLM key is configured yet.
+ * Tries, in order: OpenAI (if configured — paid, best quality) -> Gemini
+ * (free tier) -> Groq (free tier) -> a built-in offline template writer
+ * that needs no key at all, so the pipeline never hard-fails just because
+ * no LLM key is configured yet.
  */
 import * as config from "../config.js";
 
@@ -25,6 +26,33 @@ fences, in this exact shape:
     }
   ]
 }`;
+
+async function callOpenAI(character, story, language) {
+  const url = "https://api.openai.com/v1/chat/completions";
+  const prompt = `Character: ${character}\nStory idea: ${story}\nVoiceover language: ${language}`;
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: config.OPENAI_MODEL,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
+      response_format: { type: "json_object" },
+    }),
+  });
+  if (!resp.ok) {
+    const bodyText = await resp.text().catch(() => "");
+    throw new Error(`OpenAI HTTP ${resp.status}: ${bodyText.slice(0, 300)}`);
+  }
+  const data = await resp.json();
+  return data.choices[0].message.content;
+}
 
 async function callGemini(character, story, language) {
   const url =
@@ -110,6 +138,14 @@ function parseJson(raw) {
 }
 
 export async function generateScene(character, story, language = "English") {
+  if (config.OPENAI_API_KEY) {
+    try {
+      return parseJson(await callOpenAI(character, story, language));
+    } catch (e) {
+      console.log(`[llm] OpenAI failed (${e.message}), trying next provider...`);
+    }
+  }
+
   if (config.GEMINI_API_KEY) {
     try {
       return parseJson(await callGemini(character, story, language));

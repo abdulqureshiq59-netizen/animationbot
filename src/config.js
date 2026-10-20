@@ -10,6 +10,9 @@ function get(name) {
   return (process.env[name] || "").trim();
 }
 
+export const OPENAI_API_KEY = get("OPENAI_API_KEY");
+export const OPENAI_MODEL = get("OPENAI_MODEL") || "gpt-4o-mini";
+export const OPENAI_IMAGE_MODEL = get("OPENAI_IMAGE_MODEL") || "gpt-image-1";
 export const GEMINI_API_KEY = get("GEMINI_API_KEY");
 export const GROQ_API_KEY = get("GROQ_API_KEY");
 export const STABILITY_API_KEY = get("STABILITY_API_KEY");
