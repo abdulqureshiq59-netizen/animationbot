@@ -90,6 +90,7 @@ export async function generateVoiceLine(text, shotNumber, voiceKey = "english", 
   if (!text || !text.trim()) return "";
 
   const voiceName = VOICE_PRESETS[voiceKey.toLowerCase()] || VOICE_PRESETS.english;
+  console.log(`[tts] shot ${shotNumber}: voiceKey="${voiceKey}" -> voice="${voiceName}"`);
 
   if (config.ELEVENLABS_API_KEY) {
     try {
